@@ -1,32 +1,66 @@
-import dotenv from "dotenv";
-dotenv.config({ path: "./.env" });
-
 import mongoose from "mongoose";
-import connectDB from "../config/db.js";
+
 import State from "../models/State.js";
 import District from "../models/District.js";
 import Block from "../models/Block.js";
 import Village from "../models/Village.js";
 
-await connectDB();
+// 🔥 Direct MongoDB URL here
+const MONGO_URI =
+  "mongodb+srv://aktamil13_db_user:ujfUDonvei51P9oX@pmajay.oyfu34s.mongodb.net/?retryWrites=true&w=majority&appName=pmajay";
+
+// Direct connection
+const connectDirect = async () => {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("✅ MongoDB Connected Directly");
+  } catch (err) {
+    console.error("❌ Direct DB Connection Failed:", err);
+    process.exit(1);
+  }
+};
+
+await connectDirect();
 
 try {
-  console.log("🗑 Clearing old villages...");
+  console.log("🗑 Clearing old locations...");
   await Village.deleteMany({});
   await Block.deleteMany({});
   await District.deleteMany({});
   await State.deleteMany({});
 
+  console.log("🌱 Creating new location hierarchy...");
+
+  // STATE
   const tN = await State.create({ name: "TamilNadu" });
-  const kanchi = await District.create({ name: "Kanchipuram", state: tN._id });
-  const kanchiBlk = await Block.create({ name: "Kanchipuram", district: kanchi._id });
 
-  const putheyri = await Village.create({ name: "Putheyri", block: kanchiBlk._id });
+  // DISTRICT
+  const kanchi = await District.create({
+    name: "Kanchipuram",
+    state: tN._id,
+  });
 
-  console.log("🌱 Seeded Successfully", { putheyri });
+  // BLOCK
+  const kanchiBlk = await Block.create({
+    name: "Kanchipuram",
+    district: kanchi._id,
+  });
+
+  // VILLAGE
+  const putheyri = await Village.create({
+    name: "Putheyri",
+    block: kanchiBlk._id,
+  });
+
+  console.log("🌱 Seeded Successfully:", {
+    state: tN,
+    district: kanchi,
+    block: kanchiBlk,
+    village: putheyri,
+  });
+
   process.exit(0);
-
 } catch (error) {
-  console.log("❌ Seed Error:", error);
+  console.error("❌ Seed Error:", error);
   process.exit(1);
 }
