@@ -1,3 +1,4 @@
+// routes/documentRoutes.js
 import express from "express";
 import upload from "../middleware/uploadMiddleware.js";
 
@@ -12,16 +13,16 @@ import { protect, requireRole } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Officer uploads
+// Officer uploads document to PROJECT REQUEST
 router.post(
-  "/upload/:projectId",
+  "/upload/:requestId",
   protect,
   requireRole("officer"),
   upload.single("file"),
   uploadDocument
 );
 
-// Collector reviews
+// Collector reviews document
 router.put(
   "/review/:id",
   protect,
@@ -29,7 +30,7 @@ router.put(
   reviewDocument
 );
 
-// Collector dashboard
+// Collector dashboard assigned docs
 router.get(
   "/assigned",
   protect,
@@ -37,9 +38,9 @@ router.get(
   getAssignedDocuments
 );
 
-// Officer view project documents
+// Officer views all docs of a project request
 router.get(
-  "/project/:projectId",
+  "/project/:requestId",
   protect,
   requireRole("officer"),
   getProjectDocuments
