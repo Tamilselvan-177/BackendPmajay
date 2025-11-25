@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 
 // const MONGO_URI = "mongodb+srv://aktamil13_db_user:ujfUDonvei51P9oX@pmajay.oyfu34s.mongodb.net/?retryWrites=true&w=majority&appName=pmajay";
 
-const MONGO_URI = "mongodb+srv://aktamil13_db_user:ujfUDonvei51P9oX@pmajay.oyfu34s.mongodb.net/?retryWrites=true&w=majority&appName=pmajay"
+const MONGO_URI = "mongodb://127.0.0.1:27017/pmajay"
 
 const seedUsers = async () => {
   try {

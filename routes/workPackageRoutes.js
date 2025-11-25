@@ -10,7 +10,8 @@ import {
   getWorkPackageHistory,
   getPendingWorkPackages,
   getOfficerPackagesByProject,
-  getWorkPackagesByProject
+  getWorkPackagesByProject,
+  getCollectorSinglePackage,
 } from "../controllers/workPackageController.js";
 
 const router = express.Router();
@@ -75,5 +76,10 @@ router.put(
 
 // History (both officer & collector allowed)
 router.get("/:packageId/history", protect, getWorkPackageHistory);
-
+router.get(
+  "/:packageId",
+  protect,
+  requireRole("collector"),
+  getCollectorSinglePackage
+);
 export default router;

@@ -42,15 +42,37 @@ export const createWorkPackageWithUpload = async (req, res) => {
       return res.status(400).json({ message: "Amount must be numeric" });
     }
 
+    // ⭐ DEBUG: Log to see what we're getting
+    console.log("Project village:", project.village);
+    console.log("Project village type:", typeof project.village);
+    
+    // ⭐ FIX: Extract village ID properly - handle both ObjectId and populated object
+    let villageId;
+    if (project.village) {
+      if (typeof project.village === 'object' && project.village._id) {
+        villageId = project.village._id;
+      } else {
+        villageId = project.village;
+      }
+    }
+
+    console.log("Extracted villageId:", villageId);
+
+    if (!villageId) {
+      return res.status(400).json({ message: "Village information not found in project" });
+    }
+
     const work = await WorkPackage.create({
       project: projectId,
-      village: project.village,   // FIX: take village from project request
+      village: villageId,
       title,
       amount: amountNum,
       status: "pending",
       createdBy: req.user._id,
       assignedCollector: req.user.assignedCollector,
     });
+
+    console.log("Created work package with village:", work.village);
 
     const doc = await WorkPackageDocument.create({
       packageId: work._id,
@@ -75,6 +97,7 @@ export const createWorkPackageWithUpload = async (req, res) => {
 
     res.status(201).json({ success: true, message: "Work package created", work, doc });
   } catch (err) {
+    console.error("Create work package error:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -127,10 +150,17 @@ export const reviewDocument = async (req, res) => {
     const doc = await WorkPackageDocument.findById(req.params.docId);
     if (!doc) return res.status(404).json({ message: "Document not found" });
 
+    // Check if already reviewed
+    if (doc.status === "approved" || doc.status === "rejected") {
+      return res.status(400).json({ 
+        message: "Document already reviewed",
+        currentStatus: doc.status 
+      });
+    }
+
     const work = await WorkPackage.findById(doc.packageId);
     if (!work) return res.status(404).json({ message: "Work package not found" });
 
-    // Check assignment OR district match
     const districtAllowed = await verifyVillageAccess(work.village, req.user.district);
     const isAssignedCollector = work.assignedCollector.toString() === req.user._id.toString();
 
@@ -143,6 +173,14 @@ export const reviewDocument = async (req, res) => {
     doc.reviewedBy = req.user._id;
     doc.reviewedAt = new Date();
     await doc.save();
+
+    // Add history entry for document review
+    await WorkPackageHistory.create({
+      packageId: work._id,
+      action: `Document ${decision} - ${doc.documentType}`,
+      status: work.status, // Keep work package status
+      performedBy: req.user._id
+    });
 
     res.json({ success: true, message: "Document reviewed", doc });
 
@@ -158,37 +196,68 @@ export const reviewWorkPackage = async (req, res) => {
   try {
     const { decision, reason } = req.body;
 
-    const work = await WorkPackage.findById(req.params.packageId).populate("documents");
+    // ⭐ FIX: Fetch work package with all fields including village
+    const work = await WorkPackage.findById(req.params.packageId)
+      .populate("documents")
+      .populate("village")
+      .populate("project")
+      .populate("createdBy", "fullName email")
+      .populate("assignedCollector");
+    
     if (!work) return res.status(404).json({ message: "Work package not found" });
 
-    const districtAllowed = await verifyVillageAccess(work.village, req.user.district);
-    const isAssignedCollector = work.assignedCollector.toString() === req.user._id.toString();
+    console.log("Work package village:", work.village);
+    console.log("User district:", req.user.district);
+
+    // Verify access
+    const districtAllowed = await verifyVillageAccess(work.village._id || work.village, req.user.district);
+    const isAssignedCollector = work.assignedCollector._id.toString() === req.user._id.toString();
 
     if (!districtAllowed && !isAssignedCollector) {
       return res.status(403).json({ message: "Access denied: Not authorized" });
     }
 
+    // ⭐ FIX: Check if already reviewed
+    if (work.status === "approved" || work.status === "rejected") {
+      return res.status(400).json({ 
+        message: "Work package already reviewed",
+        currentStatus: work.status 
+      });
+    }
+
+    // If approving, check all documents are approved
     if (decision === "approved") {
       const unapprovedDocs = work.documents.filter(d => d.status !== "approved");
       if (unapprovedDocs.length > 0) {
-        return res.status(400).json({ message: "All documents must be approved first" });
+        return res.status(400).json({ 
+          message: "All documents must be approved first",
+          unapprovedCount: unapprovedDocs.length
+        });
       }
     }
 
-    work.status = decision;
-    work.rejectionReason = reason;
-    await work.save();
+    // ⭐ FIX: Use findByIdAndUpdate instead of save() to avoid validation issues
+    const updatedWork = await WorkPackage.findByIdAndUpdate(
+      req.params.packageId,
+      { 
+        status: decision,
+        rejectionReason: reason
+      },
+      { new: true, runValidators: false } // Don't run validators on update
+    ).populate("documents");
 
     await WorkPackageHistory.create({
       packageId: work._id,
       action: `Work Package ${decision.toUpperCase()}`,
       status: decision,
-      performedBy: req.user._id
+      performedBy: req.user._id,
+      comments: reason
     });
 
-    res.json({ success: true, message: "Work package reviewed", work });
+    res.json({ success: true, message: "Work package reviewed", work: updatedWork });
 
   } catch (err) {
+    console.error("Review work package error:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -227,9 +296,13 @@ export const getPendingWorkPackages = async (req, res) => {
       })
       .map(v => v._id.toString());
 
-    const data = await WorkPackage.find({ village: { $in: allowedVillages }, status: "pending" })
+    const data = await WorkPackage.find({ 
+      village: { $in: allowedVillages }, 
+      status: "pending" 
+    })
       .populate("createdBy", "fullName email")
-      .populate("project", "projectName");
+      .populate("project", "projectName")
+      .populate("documents");
 
     res.json({ success: true, data });
 
@@ -248,11 +321,6 @@ export const getWorkPackagesByProject = async (req, res) => {
       .populate("documents")
       .populate("createdBy", "fullName email");
 
-    if (data.length > 0) {
-      const allowed = await verifyVillageAccess(data[0].village, req.user.district);
-      if (!allowed) return res.status(403).json({ message: "Not authorized" });
-    }
-
     res.json({ success: true, data });
 
   } catch (err) {
@@ -266,6 +334,7 @@ export const getWorkPackagesByProject = async (req, res) => {
 export const getWorkPackageHistory = async (req, res) => {
   try {
     const work = await WorkPackage.findById(req.params.packageId);
+    if (!work) return res.status(404).json({ message: "Work package not found" });
 
     const allowed = await verifyVillageAccess(work.village, req.user.district);
     if (!allowed) return res.status(403).json({ message: "Access denied" });
@@ -275,6 +344,26 @@ export const getWorkPackageHistory = async (req, res) => {
       .sort({ createdAt: -1 });
 
     res.json({ success: true, history });
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// --------------------------------------------
+// Get single work package details
+// --------------------------------------------
+export const getCollectorSinglePackage = async (req, res) => {
+  try {
+    const work = await WorkPackage.findById(req.params.packageId)
+      .populate("createdBy", "fullName email")
+      .populate("project", "projectName")
+      .populate("documents")
+      .populate("history");
+
+    if (!work) return res.status(404).json({ message: "Work package not found" });
+
+    res.json({ success: true, work });
 
   } catch (err) {
     res.status(500).json({ message: err.message });

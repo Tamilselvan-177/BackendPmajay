@@ -4,7 +4,13 @@ const workPackageSchema = new mongoose.Schema(
   {
     project: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Project",
+      ref: "ProjectRequest", // Correct model reference
+      required: true
+    },
+
+    village: {                       // <-- MUST ADD THIS
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Village",
       required: true
     },
 

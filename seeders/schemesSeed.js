@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Scheme from "../models/Scheme.js";
 
 const MONGO_URI =
-  "mongodb+srv://aktamil13_db_user:ujfUDonvei51P9oX@pmajay.oyfu34s.mongodb.net/?retryWrites=true&w=majority&appName=pmajay";
+  "mongodb://127.0.0.1:27017/pmajay";
 
 const schemes = [
   { schemeName: "Swachh Bharat Mission (Gramin)", description: "Construction of toilets and sanitation improvement.", budgetLimit: 1000000 },
