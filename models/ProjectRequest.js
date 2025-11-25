@@ -1,11 +1,20 @@
-// models/ProjectRequest.js
 import mongoose from "mongoose";
 
 const projectRequestSchema = new mongoose.Schema(
   {
-    projectName: { type: String, required: true },
-    budget: { type: Number, required: true },
-    description: String,
+    projectName: {
+      type: String,
+      required: true
+    },
+
+    budget: {
+      type: Number,
+      required: true
+    },
+
+    description: {
+      type: String
+    },
 
     village: {
       type: mongoose.Schema.Types.ObjectId,
@@ -32,13 +41,23 @@ const projectRequestSchema = new mongoose.Schema(
       }
     ],
 
+    // Status flow controlled by collector
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending"
     },
 
-    rejectionReason: String
+    rejectionReason: {
+      type: String
+    },
+
+    // NEW FIELD - Scheme Assignment (collector assigns after approval)
+    assignedScheme: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Scheme",
+      default: null
+    }
   },
   { timestamps: true }
 );

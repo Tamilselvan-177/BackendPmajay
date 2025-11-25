@@ -4,6 +4,7 @@ import Project from "../models/Project.js";
 import Village from "../models/Village.js";
 import ProjectDocument from "../models/ProjectDocument.js";
 import User from "../models/User.js";   // <-- Add this line
+import Scheme from "../models/Scheme.js";
 
 // Utility: Check village inside collector district
 const verifyVillageAccess = async (villageId, collectorDistrict) => {
@@ -28,7 +29,10 @@ export const createProjectRequest = async (req, res) => {
 
     const { projectName, budget, description } = req.body;
 
-    const villageId = req.user.village;   // 🔥 Auto fetch from logged-in officer
+const villageId = req.user.village || req.body.villageId;
+    if (!villageId) {
+  return res.status(400).json({ message: "Village is missing for request" });
+}
     const assignedCollector = req.user.assignedCollector;
 
     if (!villageId) {
@@ -96,17 +100,18 @@ export const getCollectorRequests = async (req, res) => {
       .map(v => v._id.toString());
 
     const requests = await ProjectRequest.find({
-      village: { $in: allowedVillages },
-      assignedCollector: req.user._id
-    })
-      .populate("requestedBy", "fullName email")
-      .populate("village", "name block district state")
-      .populate({
-        path: "documents",
-        model: "ProjectDocument",
-        select: "documentType fileUrl status reviewComments reviewedAt"
-      })
-      .sort({ createdAt: -1 });
+  village: { $in: allowedVillages },
+  assignedCollector: req.user._id
+})
+  .populate("requestedBy", "fullName email")
+  .populate("village", "name block district state")
+  .populate({
+    path: "documents",
+    model: "ProjectDocument",
+    select: "documentType fileUrl status reviewComments reviewedAt"
+  })
+  .populate("assignedScheme", "schemeName description")   // 👈 ADD THIS
+  .sort({ createdAt: -1 });
 
     res.json({ success: true, count: requests.length, requests });
 
@@ -225,6 +230,7 @@ export const getMyRequests = async (req, res) => {
         model: "ProjectDocument",
         select: "documentType fileUrl status"
       })
+      .populate("assignedScheme", "schemeName description")   // <-- ADD THIS
       .sort({ createdAt: -1 });
 
     res.json({ success: true, count: requests.length, requests });
@@ -233,6 +239,7 @@ export const getMyRequests = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 
 export const getOfficersUnderCollector = async (req, res) => {
@@ -265,5 +272,51 @@ export const getOfficersUnderCollector = async (req, res) => {
   } catch (error) {
     console.error("❌ Error fetching officers under collector:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+
+//assign scheme to project
+export const assignSchemeToProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { schemeId } = req.body;
+
+    const project = await ProjectRequest.findOne({
+      _id: projectId,
+      assignedCollector: req.user._id   // important
+    });
+
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    project.assignedScheme = schemeId;
+    await project.save();
+
+    res.json({ success: true, message: "Scheme assigned successfully", project });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// get all schemes
+export const getAllSchemes = async (req, res) => {
+  try {
+    const schemes = await Scheme.find().sort({ schemeName: 1 });
+
+    res.status(200).json({
+      success: true,
+      count: schemes.length,
+      schemes
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch schemes",
+      error: err.message
+    });
   }
 };
