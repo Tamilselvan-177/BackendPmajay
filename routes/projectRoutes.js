@@ -7,6 +7,7 @@ import {
   getMyRequests,
   reviewProjectRequest,
   reviewProjectDocument,
+  getOfficersUnderCollector,
 } from "../controllers/projectController.js";
 import upload from "../middleware/uploadMiddleware.js";
 
@@ -32,5 +33,7 @@ router.put("/document/:docId/review", protect, requireRole("collector"), reviewP
 
 // Collector review final request
 router.put("/request/:requestId/review", protect, requireRole("collector"), reviewProjectRequest);
+
+router.get("/collector/officers",protect, requireRole("collector"), getOfficersUnderCollector);
 
 export default router;

@@ -3,6 +3,7 @@ import ProjectRequest from "../models/ProjectRequest.js";
 import Project from "../models/Project.js";
 import Village from "../models/Village.js";
 import ProjectDocument from "../models/ProjectDocument.js";
+import User from "../models/User.js";   // <-- Add this line
 
 // Utility: Check village inside collector district
 const verifyVillageAccess = async (villageId, collectorDistrict) => {
@@ -230,5 +231,39 @@ export const getMyRequests = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+
+export const getOfficersUnderCollector = async (req, res) => {
+  try {
+    const collectorId = req.user._id;
+
+    const officers = await User.find({
+      role: "officer",
+      assignedCollector: collectorId
+    })
+      .populate("state", "name")
+      .populate("district", "name")
+      .populate("block", "name")
+      .populate("village", "name");
+
+    if (!officers.length) {
+      return res.status(200).json({
+        success: true,
+        message: "No officers found under this collector",
+        officers: [],
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: officers.length,
+      officers
+    });
+
+  } catch (error) {
+    console.error("❌ Error fetching officers under collector:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
