@@ -1,7 +1,7 @@
 import State from "../models/State.js";
 import District from "../models/District.js";
 import Village from "../models/Village.js";
-import Block from "../models/block.js";
+import Block from "../models/Block.js";
 // fetch all states
 export const getStates = async (req, res) => {
   const states = await State.find();

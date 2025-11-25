@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import User from "../models/User.js";
 import State from "../models/State.js";
 import District from "../models/District.js";
-import Block from "../models/block.js";
+import Block from "../models/Block.js";
 import Village from "../models/Village.js";
 import bcrypt from "bcryptjs";
 

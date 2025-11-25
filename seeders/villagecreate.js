@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 import connectDB from "../config/db.js";
 import State from "../models/State.js";
 import District from "../models/District.js";
-import Block from "../models/block.js";
+import Block from "../models/Block.js";
 import Village from "../models/Village.js";
 
 await connectDB();
