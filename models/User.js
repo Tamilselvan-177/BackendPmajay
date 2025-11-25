@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["primeminister", "collector", "officer"],
+      enum: ["primeminister", "collector", "officer","village"],
       default: "officer",
     },
 
@@ -30,47 +30,45 @@ const userSchema = new mongoose.Schema(
     // Location Foreign Keys (ObjectId)
     // -------------------------------
     state: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "State",
-      required: function () {
-        return this.role === "collector" || this.role === "officer";
-      }
-    },
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "State",
+  required: function () {
+    return this.role !== "primeminister";
+  }
+},
 
-    district: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "District",
-      required: function () {
-        return this.role === "collector" || this.role === "officer";
-      }
-    },
+district: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "District",
+  required: function () {
+    return this.role === "collector" || this.role === "officer" || this.role === "village";
+  }
+},
 
-    block: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Block",
-      required: function () {
-        return this.role === "officer";
-      }
-    },
+block: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Block",
+  required: function () {
+    return this.role === "officer" || this.role === "village";
+  }
+},
 
-    village: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Village",
-      required: function () {
-        return this.role === "officer";
-      }
-    },
+village: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Village",
+  required: function () {
+    return this.role === "village";
+  }
+},
 
-    // -------------------------------
-    // Relation to assigned Collector
-    // -------------------------------
-    assignedCollector: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: function () {
-        return this.role === "officer";
-      }
-    },
+assignedCollector: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "User",
+  required: function () {
+    return this.role === "officer" || this.role === "village";
+  }
+},
+
 
     isActive: { type: Boolean, default: true },
   },

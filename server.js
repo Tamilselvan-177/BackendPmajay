@@ -45,4 +45,9 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+// use for web run 127.0.0.1
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+// use app below think
+// app.listen(5000, "0.0.0.0", () => {
+//   console.log("Server running on 0.0.0.0:5000");
+// });

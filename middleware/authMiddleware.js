@@ -1,47 +1,49 @@
-import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
-// Protect routes - Verify JWT token
+// -------------------------------------------
+// Middleware: Protect Routes (JWT Verification)
+// -------------------------------------------
 export const protect = async (req, res, next) => {
   let token;
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
     try {
-      // Get token from header
-      token = req.headers.authorization.split(' ')[1];
+      // Extract token from header
+      token = req.headers.authorization.split(" ")[1];
 
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Get user from token
-      req.user = await User.findById(decoded.id).select('-password');
+      // Fetch user from DB
+      req.user = await User.findById(decoded.id).select("-password");
 
       if (!req.user) {
-        return res.status(401).json({ message: 'User not found' });
+        return res.status(401).json({ message: "User not found" });
       }
 
-      next();
+      return next();
     } catch (error) {
-      console.error(error);
-      return res.status(401).json({ message: 'Not authorized, token failed' });
+      console.error("JWT Error:", error.message);
+      return res.status(401).json({ message: "Not authorized, invalid token" });
     }
   }
 
-  if (!token) {
-    return res.status(401).json({ message: 'Not authorized, no token' });
-  }
+  return res.status(401).json({ message: "Not authorized, no token provided" });
 };
 
-// Role-based access control
+// -------------------------------------------
+// Middleware: Role-Based Access Control
+// -------------------------------------------
 export const requireRole = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ message: 'Not authorized' });
+      return res.status(401).json({ message: "Not authorized" });
     }
 
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
-        message: `Access denied. Required role: ${roles.join(' or ')}. Your role: ${req.user.role}`,
+        message: `Access denied. Allowed roles: ${roles.join(", ")}. Your role: ${req.user.role}`,
       });
     }
 
