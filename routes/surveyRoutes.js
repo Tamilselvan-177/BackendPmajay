@@ -5,11 +5,14 @@ import audioUpload from "../middleware/uploadAudio.js";
 import {
   getSurveyQuestions,
   createHouse,
-  submitSurvey
+  getHousesByVillage,
+  submitSurvey,
+  getMySurveys  // ✅ NEW - Get surveys by village officer
 } from "../controllers/SurveyController.js";
 
 const router = express.Router();
 
+// Get all survey questions
 router.get(
   "/questions",
   protect,
@@ -17,6 +20,7 @@ router.get(
   getSurveyQuestions
 );
 
+// Create a new house
 router.post(
   "/create-house",
   protect,
@@ -24,6 +28,15 @@ router.post(
   createHouse
 );
 
+// ✅ ADDED - Get all houses for the logged-in village officer
+router.get(
+  "/houses",
+  protect,
+  requireRole("village"),
+  getHousesByVillage
+);
+
+// Submit survey with optional audio files
 router.post(
   "/submit",
   protect,

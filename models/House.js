@@ -18,6 +18,12 @@ const houseSchema = new mongoose.Schema({
     required: true,
   },
 
+  surveyStatus: {
+    type: String,
+    enum: ["pending", "completed"],
+    default: "pending",
+  },
+
   createdAt: {
     type: Date,
     default: Date.now,

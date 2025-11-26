@@ -17,9 +17,29 @@ const surveySchema = new mongoose.Schema({
     {
       questionNumber: Number,
       questionText: String,
-      voiceUrl: String, // uploaded audio file
+
+      answer: {
+        type: String,
+        enum: ["yes", "no", "partial", "na"], 
+        required: true,
+      },
+
+      remark: {
+        type: String,
+      },
+
+      // FIXED: Changed from audioUrl to voiceUrl to match controller
+      voiceUrl: {
+        type: String,
+      }
     }
   ],
+
+  status: {
+    type: String,
+    enum: ["pending", "completed"],
+    default: "pending",
+  },
 
   createdAt: {
     type: Date,

@@ -8,7 +8,10 @@ const storage = multer.diskStorage({
   filename(req, file, cb) {
     cb(
       null,
-      Date.now() + "-" + Math.round(Math.random() * 1e9) + path.extname(file.originalname)
+      Date.now() +
+        "-" +
+        Math.round(Math.random() * 1e9) +
+        path.extname(file.originalname)
     );
   },
 });
@@ -16,12 +19,19 @@ const storage = multer.diskStorage({
 const audioUpload = multer({
   storage,
   fileFilter(req, file, cb) {
+    // 🔥 Allow empty audio (optional)
+    if (!file) return cb(null, true);
+
+    // Accept ANY audio format
     if (file.mimetype.startsWith("audio/")) {
       cb(null, true);
     } else {
-      cb(new Error("Only audio files allowed"));
+      cb(new Error("Invalid file: Only audio files allowed"));
     }
-  }
+  },
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20MB limit
+  },
 });
 
 export default audioUpload;
