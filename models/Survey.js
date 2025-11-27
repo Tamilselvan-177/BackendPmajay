@@ -1,3 +1,6 @@
+
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 const surveySchema = new mongoose.Schema({
   house: {
     type: mongoose.Schema.Types.ObjectId,
@@ -67,3 +70,6 @@ const surveySchema = new mongoose.Schema({
 
   createdAt: { type: Date, default: Date.now }
 });
+
+
+export default mongoose.model("Survey", surveySchema);
