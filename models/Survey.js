@@ -13,37 +13,60 @@ const surveySchema = new mongoose.Schema({
     required: true,
   },
 
-  questions: [
+  // NEW STRUCTURE: TWO GROUPS OF QUESTIONS
+  householdQuestions: [
     {
-      questionNumber: Number,
-      questionText: String,
-
+      indicatorId: String,
+      domain: String,
+      scheme: String,
+      question: String,
       answer: {
         type: String,
-        enum: ["yes", "no", "partial", "na"], 
-        required: true,
+        enum: ["yes", "no"],
+        required: true
       },
-
-      remark: {
-        type: String,
-      },
-
-      // FIXED: Changed from audioUrl to voiceUrl to match controller
-      voiceUrl: {
-        type: String,
-      }
+      remark: String
     }
   ],
 
+  infrastructureQuestions: [
+    {
+      indicatorId: String,
+      domain: String,
+      question: String,
+      answer: {
+        type: String,
+        enum: ["yes", "no"],
+        required: true
+      },
+      remark: String
+    }
+  ],
+
+  // Who took the survey
+  surveyTakenBy: {
+    name: String,
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    }
+  },
+
+  // Snapshot of house members at time of survey
+  members: [String],
+  membersCount: {
+    type: Number,
+    default: 0
+  },
+
   status: {
     type: String,
-    enum: ["pending", "completed"],
-    default: "pending",
+    default: "completed"
   },
 
   createdAt: {
     type: Date,
-    default: Date.now,
+    default: Date.now
   }
 });
 

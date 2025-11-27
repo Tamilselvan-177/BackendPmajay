@@ -1,28 +1,134 @@
 import House from "../models/House.js";
 import Survey from "../models/Survey.js";
 
-// 🔥 20 FIXED QUESTIONS
-export const SURVEY_QUESTIONS = [
-  "Do you have a toilet facility at home?",
-  "Is your toilet currently functional?",
-  "How many members live in the house?",
-  "Is drinking water available inside your house?",
-  "Is electricity available in your house?",
-  "Do you have access to waste disposal?",
-  "Are all children vaccinated?",
-  "Do you have gas cylinder connection?",
-  "Is there a separate bathroom in your house?",
-  "Do you own your house?",
-  "Do you have proper drainage connection?",
-  "Does anyone in the house have chronic illness?",
-  "Are all children attending school?",
-  "Is tap water available everyday?",
-  "Do you have livestock?",
-  "Is there a toilet pit constructed?",
-  "Do you receive benefits from government schemes?",
-  "Do you use sanitary pads or proper hygiene products?",
-  "Do you segregate waste (wet/dry)?",
-  "Do you have rainwater harvesting facility?"
+// =========================
+// PM-AJAY: Reduced 20 Questions (10 Infrastructure + 10 Household)
+// =========================
+
+export const INFRA_QUESTIONS = [
+  {
+    id: 1,
+    category: "Infrastructure",
+    domain: "Drinking Water & Sanitation",
+    question: "Is sustainable drinking water available in the village?",
+  },
+  {
+    id: 2,
+    category: "Infrastructure",
+    domain: "Toilets",
+    question: "Are toilets available in all schools and Anganwadis?",
+  },
+  {
+    id: 3,
+    category: "Infrastructure",
+    domain: "Drainage",
+    question: "Are drains available along internal roads?",
+  },
+  {
+    id: 4,
+    category: "Infrastructure",
+    domain: "Drainage",
+    question: "Are existing drains functioning properly?",
+  },
+  {
+    id: 5,
+    category: "Infrastructure",
+    domain: "Waste Management",
+    question: "Is solid and liquid waste disposed effectively?",
+  },
+  {
+    id: 6,
+    category: "Infrastructure",
+    domain: "Health",
+    question: "Is ambulance service available on call?",
+  },
+  {
+    id: 7,
+    category: "Infrastructure",
+    domain: "Anganwadi",
+    question: "Are all Anganwadis constructed and functional?",
+  },
+  {
+    id: 8,
+    category: "Infrastructure",
+    domain: "Roads",
+    question: "Is the village connected by all‑weather roads?",
+  },
+  {
+    id: 9,
+    category: "Infrastructure",
+    domain: "Electricity",
+    question: "Is the village fully electrified?",
+  },
+  {
+    id: 10,
+    category: "Infrastructure",
+    domain: "Digitization",
+    question: "Is internet connectivity available in the village?",
+  }
+];
+
+export const HOUSEHOLD_QUESTIONS = [
+  {
+    id: 11,
+    category: "Household",
+    domain: "Toilets",
+    question: "Do households have individual toilets (IHHL)?",
+  },
+  {
+    id: 12,
+    category: "Household",
+    domain: "Sanitation",
+    question: "Are people still defecating in the open?",
+  },
+  {
+    id: 13,
+    category: "Household",
+    domain: "Education",
+    question: "Are children (6–14) attending school?",
+  },
+  {
+    id: 14,
+    category: "Household",
+    domain: "Health",
+    question: "Are households covered under any health protection scheme?",
+  },
+  {
+    id: 15,
+    category: "Household",
+    domain: "Health",
+    question: "Are pregnant women severely anaemic?",
+  },
+  {
+    id: 16,
+    category: "Household",
+    domain: "Health",
+    question: "Are children fully immunized (<1 year)?",
+  },
+  {
+    id: 17,
+    category: "Household",
+    domain: "Social Security",
+    question: "Do eligible women receive widow pension?",
+  },
+  {
+    id: 18,
+    category: "Household",
+    domain: "Housing",
+    question: "Do households live in unsafe / kachcha houses?",
+  },
+  {
+    id: 19,
+    category: "Household",
+    domain: "Electricity & Fuel",
+    question: "Do households have electricity connection?",
+  },
+  {
+    id: 20,
+    category: "Household",
+    domain: "Financial Inclusion",
+    question: "Do households have bank/post office accounts?",
+  }
 ];
 
 // =========================
@@ -30,11 +136,7 @@ export const SURVEY_QUESTIONS = [
 // =========================
 export const getSurveyQuestions = async (req, res) => {
   try {
-    res.json({
-      success: true,
-      total: SURVEY_QUESTIONS.length,
-      questions: SURVEY_QUESTIONS,
-    });
+    res.json({ success: true, householdQuestions: HOUSEHOLD_QUESTIONS, infrastructureQuestions: INFRA_QUESTIONS });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -46,193 +148,145 @@ export const getSurveyQuestions = async (req, res) => {
 export const createHouse = async (req, res) => {
   try {
     const { houseNumber } = req.body;
-
     const villageId = req.user.village;
 
-    if (!villageId) {
-      return res.status(400).json({
-        success: false,
-        message: "Village not linked with user",
-      });
+    if (!villageId)
+      return res.status(400).json({ success: false, message: "Village not linked with user" });
+
+    const exists = await House.findOne({ village: villageId, houseNumber });
+    if (exists)
+      return res.status(400).json({ success: false, message: "House already exists" });
+
+    // Accept optional members data when creating a house
+    const { members, membersCount, address } = req.body;
+
+    if (members && !Array.isArray(members)) {
+      return res.status(400).json({ success: false, message: "Members must be an array of names" });
     }
 
-    // Check if house number already exists in this village
-    const existingHouse = await House.findOne({
-      village: villageId,
-      houseNumber,
-    });
-
-    if (existingHouse) {
-      return res.status(400).json({
-        success: false,
-        message: "House number already exists in this village",
-      });
-    }
+    const finalMembers = Array.isArray(members) ? members : [];
+    const finalMembersCount = finalMembers.length || (membersCount ? Number(membersCount) : 0);
 
     const house = await House.create({
       village: villageId,
       houseNumber,
       createdBy: req.user._id,
+      members: finalMembers,
+      membersCount: finalMembersCount,
+      address: address || ""
     });
 
-    res.json({
-      success: true,
-      message: "House created successfully",
-      house,
-    });
+    res.json({ success: true, message: "House created successfully", house });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
 // =========================
-// GET HOUSES BY VILLAGE (NEW)
+// GET HOUSES BY VILLAGE
 // =========================
 export const getHousesByVillage = async (req, res) => {
   try {
     const villageId = req.user.village;
-
-    if (!villageId) {
-      return res.status(400).json({
-        success: false,
-        message: "Village not linked with user",
-      });
-    }
+    if (!villageId)
+      return res.status(400).json({ success: false, message: "Village not linked" });
 
     const houses = await House.find({ village: villageId })
-      .select("houseNumber createdBy village createdAt surveyStatus") // ✅ FIX
-      .populate("village", "name")
+      .select("houseNumber createdBy village createdAt surveyStatus address membersCount members")
       .populate("createdBy", "fullName")
+      .populate("village", "name")
       .sort({ createdAt: -1 });
 
-    res.json({
-      success: true,
-      count: houses.length,
-      houses,
-    });
+    res.json({ success: true, houses });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-
 // =========================
 // SUBMIT SURVEY
 // =========================
-// controllers/SurveyController.js (replace submitSurvey)
 export const submitSurvey = async (req, res) => {
   try {
-    const { houseId, answers } = req.body;
-
-    // Auto-detect villageId from logged-in user
     const villageId = req.user.village;
-    if (!villageId) {
-      return res.status(400).json({
-        success: false,
-        message: "Village not linked with user",
-      });
-    }
+    const { houseId, householdAnswers, infrastructureAnswers, surveyorName, members, membersCount } = req.body;
 
-    // Verify house exists and belongs to this village
+    if (!villageId)
+      return res.status(400).json({ success: false, message: "Village not linked" });
+
     const house = await House.findById(houseId);
-    if (!house) {
+    if (!house)
       return res.status(404).json({ success: false, message: "House not found" });
-    }
-    if (house.village.toString() !== villageId.toString()) {
-      return res.status(403).json({ success: false, message: "House does not belong to your village" });
-    }
 
-    // If already completed, refuse
-    if (house.surveyStatus === "completed") {
-      return res.status(400).json({ success: false, message: "Survey already completed for this house" });
-    }
-
-    // Parse answers
-    let parsedAnswers = [];
-    try {
-      parsedAnswers = Array.isArray(answers) ? answers : JSON.parse(answers);
-    } catch (e) {
-      return res.status(400).json({ success: false, message: "Invalid answer format. Must be JSON array." });
-    }
-
-    if (!Array.isArray(parsedAnswers) || parsedAnswers.length !== SURVEY_QUESTIONS.length) {
-      return res.status(400).json({
-        success: false,
-        message: `Provide exactly ${SURVEY_QUESTIONS.length} answers`,
-      });
-    }
-
-    const audioFiles = req.files || [];
-    const voiceUrls = Array(SURVEY_QUESTIONS.length).fill(null);
-
-    audioFiles.forEach((file) => {
-      const match = file.fieldname.match(/\[(\d+)\]/);
-      if (match) {
-        const index = parseInt(match[1], 10);
-        if (!Number.isNaN(index) && index >= 0 && index < voiceUrls.length) {
-          voiceUrls[index] = file.path;
-        }
+    // If the request contains updated members info, validate and update house before saving survey
+    let updatedHouse = house;
+    if (members) {
+      if (!Array.isArray(members)) {
+        return res.status(400).json({ success: false, message: "Members must be an array of names" });
       }
-    });
 
-    const formattedQuestions = SURVEY_QUESTIONS.map((q, index) => ({
-      questionNumber: index + 1,
-      questionText: q,
-      answer: parsedAnswers[index] ?? "na",
-      voiceUrl: voiceUrls[index] ?? null,
+      const newCount = members.length || (membersCount ? Number(membersCount) : 0);
+      updatedHouse = await House.findByIdAndUpdate(
+        houseId,
+        { members, membersCount: newCount },
+        { new: true }
+      );
+    }
+
+    // Format household questions with answers
+    const formattedHouseholdQuestions = HOUSEHOLD_QUESTIONS.map((q, idx) => ({
+      indicatorId: `Q${q.id}`,
+      domain: q.domain,
+      scheme: q.category,
+      question: q.question,
+      answer: householdAnswers && Array.isArray(householdAnswers) ? householdAnswers[idx] || "no" : "no",
+      remark: ""
     }));
+
+    // Format infrastructure questions with answers
+    const formattedInfraQuestions = INFRA_QUESTIONS.map((q, idx) => ({
+      indicatorId: `Q${q.id}`,
+      domain: q.domain,
+      question: q.question,
+      answer: infrastructureAnswers && Array.isArray(infrastructureAnswers) ? infrastructureAnswers[idx] || "no" : "no",
+      remark: ""
+    }));
+
+    // Determine surveyor name (prefer provided name, else logged-in user's fullName)
+    const surveyor = surveyorName || (req.user && req.user.fullName) || "";
 
     const survey = await Survey.create({
       house: houseId,
       village: villageId,
-      questions: formattedQuestions,
+      householdQuestions: formattedHouseholdQuestions,
+      infrastructureQuestions: formattedInfraQuestions,
       status: "completed",
-      createdBy: req.user._id,
+      surveyTakenBy: { name: surveyor, user: req.user ? req.user._id : undefined },
+      members: updatedHouse.members || [],
+      membersCount: updatedHouse.membersCount || 0
     });
 
-    // Update house to completed and return updated house
-    const updatedHouse = await House.findByIdAndUpdate(
-      houseId,
-      { surveyStatus: "completed" },
-      { new: true }
-    ).select("houseNumber surveyStatus createdBy createdAt village");
+    // Mark house surveyStatus completed
+    await House.findByIdAndUpdate(houseId, { surveyStatus: "completed" });
 
-    return res.json({
-      success: true,
-      message: "Survey submitted successfully",
-      survey,
-      house: updatedHouse,
-    });
+    res.json({ success: true, message: "Survey submitted", survey });
   } catch (err) {
-    console.error("submitSurvey error:", err);
-    return res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
 // =========================
-// GET MY SURVEYS (NEW)
+// GET MY SURVEYS
 // =========================
 export const getMySurveys = async (req, res) => {
   try {
     const villageId = req.user.village;
-
-    if (!villageId) {
-      return res.status(400).json({
-        success: false,
-        message: "Village not linked with user",
-      });
-    }
-
     const surveys = await Survey.find({ village: villageId })
       .populate("house", "houseNumber")
       .populate("village", "name")
       .sort({ createdAt: -1 });
 
-    res.json({
-      success: true,
-      count: surveys.length,
-      surveys,
-    });
+    res.json({ success: true, surveys });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -12,11 +12,27 @@ const houseSchema = new mongoose.Schema({
     required: true,
   },
 
+  address: {
+    type: String,
+    default: "",
+  },
+
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User", // village officer user
     required: true,
   },
+
+  membersCount: {
+    type: Number,
+    default: 0,
+  },
+
+  members: [
+    {
+      type: String,
+    }
+  ],
 
   surveyStatus: {
     type: String,

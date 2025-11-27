@@ -7,7 +7,6 @@ import {
   createHouse,
   getHousesByVillage,
   submitSurvey,
-  getMySurveys  // ✅ NEW - Get surveys by village officer
 } from "../controllers/SurveyController.js";
 
 const router = express.Router();
