@@ -406,3 +406,26 @@ export const getMySurveys = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+
+// =========================
+// GET COUNT OF COMPLETED HOUSE SURVEYS
+// =========================
+export const getCompletedSurveyCount = async (req, res) => {
+  try {
+    const villageId = req.user.village;
+
+    if (!villageId)
+      return res.status(400).json({ success: false, message: "Village not linked" });
+
+    // Count surveys where status = completed for user's village
+    const count = await Survey.countDocuments({
+      village: villageId,
+      status: "completed"
+    });
+
+    res.json({ success: true, completedSurveys: count });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

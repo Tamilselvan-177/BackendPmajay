@@ -9,6 +9,7 @@ import {
   submitSurvey,
   submitHouseholdSurvey,
   submitInfrastructureSurvey,
+  getCompletedSurveyCount,
 } from "../controllers/SurveyController.js";
 
 const router = express.Router();
@@ -63,5 +64,13 @@ router.post(
   audioUpload.array("voices", 20),
   submitSurvey
 );
+
+router.get(
+  "/completed-count",
+  protect,
+  requireRole("village"),
+  getCompletedSurveyCount
+);
+
 
 export default router;
