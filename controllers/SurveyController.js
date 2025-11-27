@@ -204,7 +204,122 @@ export const getHousesByVillage = async (req, res) => {
 };
 
 // =========================
-// SUBMIT SURVEY
+// SUBMIT HOUSEHOLD SURVEY
+// =========================
+export const submitHouseholdSurvey = async (req, res) => {
+  try {
+    const villageId = req.user.village;
+    const { houseId, householdAnswers, surveyorName, members, membersCount } = req.body;
+
+    if (!villageId)
+      return res.status(400).json({ success: false, message: "Village not linked" });
+
+    const house = await House.findById(houseId);
+    if (!house)
+      return res.status(404).json({ success: false, message: "House not found" });
+
+    // If the request contains updated members info, validate and update house
+    let updatedHouse = house;
+    if (members) {
+      if (!Array.isArray(members)) {
+        return res.status(400).json({ success: false, message: "Members must be an array of names" });
+      }
+
+      const newCount = members.length || (membersCount ? Number(membersCount) : 0);
+      updatedHouse = await House.findByIdAndUpdate(
+        houseId,
+        { members, membersCount: newCount },
+        { new: true }
+      );
+    }
+
+    // Format household questions with answers
+  const formattedHouseholdQuestions = HOUSEHOLD_QUESTIONS.map((q, idx) => {
+  const ans = householdAnswers?.[idx] || {};
+
+  return {
+    indicatorId: `Q${q.id}`,
+    domain: q.domain,
+    scheme: q.category,
+    question: q.question,
+    answer: ans.answer || "no",
+    score: ans.score ? Number(ans.score) : 1,
+    remark: ""
+  };
+});
+
+    // Determine surveyor name
+    const surveyor = surveyorName || (req.user && req.user.fullName) || "";
+
+    const survey = await Survey.create({
+      house: houseId,
+      village: villageId,
+      householdQuestions: formattedHouseholdQuestions,
+      infrastructureQuestions: [],
+      status: "pending",
+      surveyTakenBy: { name: surveyor, user: req.user ? req.user._id : undefined },
+      members: updatedHouse.members || [],
+      membersCount: updatedHouse.membersCount || 0
+    });
+
+    res.json({ success: true, message: "Household survey submitted", survey });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// =========================
+// SUBMIT INFRASTRUCTURE SURVEY
+// =========================
+export const submitInfrastructureSurvey = async (req, res) => {
+  try {
+    const villageId = req.user.village;
+    const { surveyId, infrastructureAnswers } = req.body;
+
+    if (!villageId)
+      return res.status(400).json({ success: false, message: "Village not linked" });
+
+    // Find the existing survey
+    const survey = await Survey.findById(surveyId);
+    if (!survey)
+      return res.status(404).json({ success: false, message: "Survey not found" });
+
+    // Format infrastructure questions with answers
+   const formattedInfraQuestions = INFRA_QUESTIONS.map((q, idx) => {
+  const ans = infrastructureAnswers?.[idx] || {};
+
+  return {
+    indicatorId: `Q${q.id}`,
+    domain: q.domain,
+    question: q.question,
+    answer: ans.answer || "no",
+    score: ans.score ? Number(ans.score) : 1,
+    remark: ""
+  };
+});
+
+
+    // Update survey with infrastructure answers and mark as completed
+    const updatedSurvey = await Survey.findByIdAndUpdate(
+      surveyId,
+      {
+        infrastructureQuestions: formattedInfraQuestions,
+        status: "completed"
+      },
+      { new: true }
+    );
+
+    // Mark house surveyStatus as completed
+    await House.findByIdAndUpdate(survey.house, { surveyStatus: "completed" });
+
+    res.json({ success: true, message: "Infrastructure survey submitted", survey: updatedSurvey });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// =========================
+// SUBMIT SURVEY (LEGACY - COMBINED)
 // =========================
 export const submitSurvey = async (req, res) => {
   try {

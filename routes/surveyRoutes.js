@@ -7,6 +7,8 @@ import {
   createHouse,
   getHousesByVillage,
   submitSurvey,
+  submitHouseholdSurvey,
+  submitInfrastructureSurvey,
 } from "../controllers/SurveyController.js";
 
 const router = express.Router();
@@ -27,7 +29,7 @@ router.post(
   createHouse
 );
 
-// ✅ ADDED - Get all houses for the logged-in village officer
+// Get all houses for the logged-in village officer
 router.get(
   "/houses",
   protect,
@@ -35,7 +37,25 @@ router.get(
   getHousesByVillage
 );
 
-// Submit survey with optional audio files
+// NEW - Submit household survey (first step)
+router.post(
+  "/submit-household",
+  protect,
+  requireRole("village"),
+  audioUpload.array("voices", 10),
+  submitHouseholdSurvey
+);
+
+// NEW - Submit infrastructure survey (second step)
+router.post(
+  "/submit-infrastructure",
+  protect,
+  requireRole("village"),
+  audioUpload.array("voices", 10),
+  submitInfrastructureSurvey
+);
+
+// LEGACY - Submit survey with both household and infrastructure (combined)
 router.post(
   "/submit",
   protect,

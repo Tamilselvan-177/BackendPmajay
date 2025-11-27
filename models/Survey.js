@@ -1,5 +1,3 @@
-import mongoose from "mongoose";
-
 const surveySchema = new mongoose.Schema({
   house: {
     type: mongoose.Schema.Types.ObjectId,
@@ -13,7 +11,6 @@ const surveySchema = new mongoose.Schema({
     required: true,
   },
 
-  // NEW STRUCTURE: TWO GROUPS OF QUESTIONS
   householdQuestions: [
     {
       indicatorId: String,
@@ -23,6 +20,12 @@ const surveySchema = new mongoose.Schema({
       answer: {
         type: String,
         enum: ["yes", "no"],
+        required: true
+      },
+      score: {
+        type: Number,
+        min: 1,
+        max: 10,
         required: true
       },
       remark: String
@@ -39,35 +42,28 @@ const surveySchema = new mongoose.Schema({
         enum: ["yes", "no"],
         required: true
       },
+      score: {
+        type: Number,
+        min: 1,
+        max: 10,
+        required: true
+      },
       remark: String
     }
   ],
 
-  // Who took the survey
   surveyTakenBy: {
     name: String,
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    }
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
   },
 
-  // Snapshot of house members at time of survey
   members: [String],
-  membersCount: {
-    type: Number,
-    default: 0
-  },
+  membersCount: Number,
 
   status: {
     type: String,
     default: "completed"
   },
 
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+  createdAt: { type: Date, default: Date.now }
 });
-
-export default mongoose.model("Survey", surveySchema);
