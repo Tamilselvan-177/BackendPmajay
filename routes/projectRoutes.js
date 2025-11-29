@@ -1,7 +1,7 @@
+// routes/projectRoutes.js - COMPLETE UPDATED VERSION
 import express from "express";
 import { protect, requireRole } from "../middleware/authMiddleware.js";
 import upload from "../middleware/uploadMiddleware.js";
-
 import {
   createProjectRequest,
   getCollectorRequests,
@@ -9,15 +9,20 @@ import {
   reviewProjectRequest,
   reviewProjectDocument,
   getOfficersUnderCollector,
-  assignSchemeToProject,
+  assignSchemeToRequest,
+  getFilteredSchemes,
+  collectorEditScheme,
   getAllSchemes,
+  setProjectLocation,
+  getApprovedProjects
 } from "../controllers/projectController.js";
-
-
 
 const router = express.Router();
 
-// Officer create request
+// =====================================
+// OFFICER ROUTES
+// =====================================
+// Officer create project request + upload documents
 router.post(
   "/request",
   protect,
@@ -25,15 +30,7 @@ router.post(
   createProjectRequest
 );
 
-// Collector view assigned requests
-router.get(
-  "/collector/requests",
-  protect,
-  requireRole("collector"),
-  getCollectorRequests
-);
-
-// Officer view own submitted requests
+// Officer view their own submitted requests
 router.get(
   "/my-requests",
   protect,
@@ -41,7 +38,44 @@ router.get(
   getMyRequests
 );
 
-// Collector review document
+// Officer: Get approved projects for verification
+router.get(
+  "/approved",
+  protect,
+  requireRole("officer"),
+  getApprovedProjects
+);
+
+// =====================================
+// OFFICER SCHEME ROUTES (NEW 🚀)
+// =====================================
+// Officer: Get filtered schemes by category + budget
+router.get(
+  "/schemes/filtered",
+  protect,
+  getFilteredSchemes
+);
+
+// Officer: Assign scheme to their project request
+router.put(
+  "/request/:requestId/assign-scheme",
+  protect,
+  requireRole("officer"),
+  assignSchemeToRequest
+);
+
+// =====================================
+// COLLECTOR ROUTES
+// =====================================
+// Collector view assigned requests (district restricted)
+router.get(
+  "/collector/requests",
+  protect,
+  requireRole("collector"),
+  getCollectorRequests
+);
+
+// Collector review individual document
 router.put(
   "/document/:docId/review",
   protect,
@@ -49,7 +83,7 @@ router.put(
   reviewProjectDocument
 );
 
-// Collector review final request
+// Collector review/approve/reject final request
 router.put(
   "/request/:requestId/review",
   protect,
@@ -57,7 +91,7 @@ router.put(
   reviewProjectRequest
 );
 
-// Collector get officers list
+// Collector get officers under them
 router.get(
   "/collector/officers",
   protect,
@@ -65,23 +99,36 @@ router.get(
   getOfficersUnderCollector
 );
 
-// ===============================
-// 🚀 NEW ROUTES FOR SCHEME HANDLING
-// ===============================
+// =====================================
+// COLLECTOR SCHEME ROUTES (NEW 🚀)
+// =====================================
+// Collector: Edit/View/Remove scheme on requests
+router.put(
+  "/collector/request/:requestId/scheme",
+  protect,
+  requireRole("collector"),
+  collectorEditScheme
+);
 
-// Get all schemes (PM, Collector, Officer can see)
+// =====================================
+// SHARED ROUTES (All Roles)
+// =====================================
+// Get all schemes (PM, Collector, Officer)
 router.get(
   "/schemes",
   protect,
   getAllSchemes
 );
 
-// Assign scheme to project (Collector only)
+// =====================================
+// COLLECTOR MAP ROUTES
+// =====================================
+// Collector: Manually set project base coordinates
 router.put(
-  "/assign-scheme/:projectId",
+  "/:projectId/location",
   protect,
   requireRole("collector"),
-  assignSchemeToProject
+  setProjectLocation
 );
 
 export default router;

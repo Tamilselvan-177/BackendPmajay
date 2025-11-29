@@ -11,7 +11,7 @@ import locationRoutes from "./routes/locationRoutes.js";
 import path from "path";
 import WorkPackage from './routes/workPackageRoutes.js';
 import surveyRoutes from "./routes/surveyRoutes.js";
-
+import verificationRoutes from "./routes/verificationRoutes.js";
 dotenv.config();
 
 const app = express();
@@ -38,6 +38,7 @@ app.use("/api/location", locationRoutes);
 app.use("/api/project-requests", projectRoutes);
 app.use("/api/work-packages", WorkPackage);
 app.use("/api/surveys", surveyRoutes);
+app.use("/api/verifications", verificationRoutes);
 
 // Static files
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
