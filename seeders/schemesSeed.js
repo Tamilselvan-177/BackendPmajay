@@ -38,6 +38,9 @@ const schemes = [
   { schemeName: "PM Rural Transportation Mini-Bus Scheme", description: "Transport for students & workers.", budgetLimit: 3600000 }
 ];
 
+
+
+
 const seedSchemes = async () => {
   try {
     await mongoose.connect(MONGO_URI);
