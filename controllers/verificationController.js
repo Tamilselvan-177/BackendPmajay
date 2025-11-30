@@ -54,89 +54,71 @@ const checkProjectAccess = async (
 // =========================================
 export const getProjectsForMap = async (req, res) => {
   try {
-    const { role, _id: userId, district, block } = req.user;
+    const { role, _id: userId, district, block, village } = req.user;
 
     let query = {};
 
-    // Officer sees only projects in their block
-    if (role === "officer") {
+    // ✅ Role-based filtering
+    if (role === "village") {
+      if (!village) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Village not assigned" 
+        });
+      }
+      query.village = village;
+    }
+    else if (role === "officer") {
       const villages = await Village.find({ block: block }).select("_id");
       query.village = { $in: villages.map(v => v._id) };
     }
-
-    // Collector sees all projects in their district
-    if (role === "collector") {
+    else if (role === "collector") {
       const villages = await Village.find()
-        .populate({
-          path: "block",
-          populate: { path: "district" }
-        });
-
+        .populate({ path: "block", populate: { path: "district" } });
       const allowedVillages = villages
         .filter(v => v.block.district._id.toString() === district.toString())
         .map(v => v._id);
-
       query.village = { $in: allowedVillages };
     }
 
+    // Base project query with essential populates
     const projects = await Project.find(query)
-      .populate("village", "name")
-      .populate("officerInCharge", "fullName email")
+      .populate("village", "name block district")
       .populate("assignedScheme", "schemeName description")
-      .populate({
-        path: "village",
-        populate: {
-          path: "block",
-          populate: { path: "district" }
-        }
-      })
-      .sort({ lastVerifiedAt: 1, createdAt: -1 });
+      .populate("officerInCharge", "fullName email")
+      .select("projectName village assignedScheme officerInCharge budget currentProgress currentStatus verificationCount lastVerifiedAt needsVerification location");
 
-    // Get latest verification with location for each project
+    // Get valid locations + role-based data
     const projectsWithLocations = await Promise.all(
       projects.map(async (project) => {
         const latestVerification = await ProjectVerification.findOne({ 
           project: project._id 
-        })
-          .sort({ createdAt: -1 })
-          .populate("verifiedBy", "fullName email role");
+        }).sort({ createdAt: -1 })
+          .populate("verifiedBy", "fullName email role")
+          .select("location photo description progressPercentage workStatus verifiedBy createdAt");
 
-        // Helper to check if location has valid coordinates
         const isValidLocation = (loc) => {
           if (!loc) return false;
           const coords = loc.coordinates;
-          if (!Array.isArray(coords) || coords.length !== 2) return false;
-          const [lng, lat] = coords;
-          return (
-            typeof lng === "number" &&
-            typeof lat === "number" &&
-            !Number.isNaN(lng) &&
-            !Number.isNaN(lat) &&
-            lng >= -180 && lng <= 180 &&
-            lat >= -90 && lat <= 90
-          );
+          return Array.isArray(coords) && coords.length === 2 && 
+                 typeof coords[0] === "number" && typeof coords[1] === "number" &&
+                 coords[0] >= -180 && coords[0] <= 180 && 
+                 coords[1] >= -90 && coords[1] <= 90;
         };
 
-        // Prefer latest verification location; fall back to manually set project.location
-        // Convert Mongoose document to plain object if needed
-        const projectLoc = project.location ? {
-          type: project.location.type || "Point",
-          coordinates: project.location.coordinates ? [...project.location.coordinates] : null,
-          address: project.location.address || ""
-        } : null;
-        
-        const location = latestVerification?.location || projectLoc || null;
-        const validLocation = isValidLocation(location) ? location : null;
-        
-        // Debug log for projects without valid location
-        if (!validLocation && project.location) {
-          console.log(`⚠️ Project "${project.projectName}" has location but invalid coordinates:`, {
-            location: project.location,
-            coordinates: project.location.coordinates,
-            type: typeof project.location.coordinates
-          });
+        const location = latestVerification?.location || project.location;
+        if (!isValidLocation(location)) return null;
+
+        // ✅ VILLAGE USERS: MINIMAL DATA ONLY
+        if (role === "village") {
+          return {
+            _id: project._id,
+            projectName: project.projectName,
+            location  // ✅ ONLY project name + coords
+          };
         }
 
+        // ✅ OFFICER/COLLECTOR: FULL DATA
         return {
           _id: project._id,
           projectName: project.projectName,
@@ -151,10 +133,10 @@ export const getProjectsForMap = async (req, res) => {
           budget: project.budget,
           currentProgress: project.currentProgress,
           currentStatus: project.currentStatus,
-          verificationCount: project.verificationCount,
+          verificationCount: project.verificationCount || 0,
           lastVerifiedAt: project.lastVerifiedAt,
-          needsVerification: project.needsVerification,
-          location: validLocation,
+          needsVerification: project.needsVerification || false,
+          location,
           latestVerification: latestVerification ? {
             _id: latestVerification._id,
             photo: latestVerification.photo,
@@ -168,13 +150,13 @@ export const getProjectsForMap = async (req, res) => {
       })
     );
 
-    // Filter out projects without valid location data
-    const validProjects = projectsWithLocations.filter(p => p.location !== null && p.location.coordinates);
+    const validProjects = projectsWithLocations.filter(p => p !== null);
 
     res.json({
       success: true,
       count: validProjects.length,
-      projects: validProjects
+      projects: validProjects,
+      userRole: role  // ✅ Frontend knows what data to expect
     });
 
   } catch (error) {

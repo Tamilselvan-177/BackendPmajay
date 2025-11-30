@@ -48,7 +48,7 @@ const upload = multer({
 router.get(
   "/map",
   protect,
-  requireRole("officer", "collector"),
+  requireRole("officer", "collector", "village"),  // ✅ ADD "village"
   getProjectsForMap
 );
 
@@ -80,12 +80,10 @@ router.get(
 router.post(
   "/upload/:projectId",
   protect,
-  // Village app users can also upload progress photos
-  requireRole("officer", "collector", "village"),
+  requireRole("officer", "collector", "village"),  // ✅ Already good
   upload.single("photo"),
   uploadVerification
 );
-
 // GET /api/verifications/timeline/:projectId
 router.get(
   "/timeline/:projectId",
@@ -114,9 +112,10 @@ router.patch(
 router.get(
   "/projects",
   protect,
-  requireRole("officer", "collector", "village"),
+  requireRole("officer", "collector", "village"),  // ✅ Already good
   getProjectsForVerification
 );
+
 
 // DELETE /api/verifications/delete/:verificationId
 router.delete(
