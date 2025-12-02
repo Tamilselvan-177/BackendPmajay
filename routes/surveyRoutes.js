@@ -1,44 +1,36 @@
+// routes/surveyRoutes.js
 import express from "express";
 import { protect, requireRole } from "../middleware/authMiddleware.js";
 import audioUpload from "../middleware/uploadAudio.js";
-
 import {
   getSurveyQuestions,
   createHouse,
   getHousesByVillage,
-  submitSurvey,
+  submitSurveyV2,
   submitHouseholdSurvey,
   submitInfrastructureSurvey,
+  submitSurvey,
   getCompletedSurveyCount,
+  getVillageDomainsAbove70,
+  getMySurveys
 } from "../controllers/SurveyController.js";
 
 const router = express.Router();
 
-// Get all survey questions
-router.get(
-  "/questions",
-  protect,
-  requireRole("village"),
-  getSurveyQuestions
-);
+router.get("/questions", protect, requireRole("village"), getSurveyQuestions);
+router.post("/create-house", protect, requireRole("village"), createHouse);
+router.get("/houses", protect, requireRole("village"), getHousesByVillage);
 
-// Create a new house
+// NEW MAIN ENDPOINT
 router.post(
-  "/create-house",
+  "/submit-v2",
   protect,
   requireRole("village"),
-  createHouse
+  audioUpload.array("voices", 20),
+  submitSurveyV2
 );
 
-// Get all houses for the logged-in village officer
-router.get(
-  "/houses",
-  protect,
-  requireRole("village"),
-  getHousesByVillage
-);
-
-// NEW - Submit household survey (first step)
+// Legacy (return 410 now)
 router.post(
   "/submit-household",
   protect,
@@ -46,8 +38,6 @@ router.post(
   audioUpload.array("voices", 10),
   submitHouseholdSurvey
 );
-
-// NEW - Submit infrastructure survey (second step)
 router.post(
   "/submit-infrastructure",
   protect,
@@ -55,8 +45,6 @@ router.post(
   audioUpload.array("voices", 10),
   submitInfrastructureSurvey
 );
-
-// LEGACY - Submit survey with both household and infrastructure (combined)
 router.post(
   "/submit",
   protect,
@@ -72,5 +60,17 @@ router.get(
   getCompletedSurveyCount
 );
 
+router.get(
+  "/my-surveys",
+  protect,
+  requireRole("village"),
+  getMySurveys
+);
+
+router.get(
+  "/village/:villageId/domains-above-70",
+  protect,
+  getVillageDomainsAbove70
+);
 
 export default router;
