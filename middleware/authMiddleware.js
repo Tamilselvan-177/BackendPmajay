@@ -50,3 +50,12 @@ export const requireRole = (...roles) => {
     next();
   };
 };
+
+export const requireDashboardAccess = (req, res, next) => {
+  if (!["collector", "officer", "village"].includes(req.user.role)) {
+    return res.status(403).json({ 
+      message: "Only collectors, officers, and village officers can access dashboard" 
+    });
+  }
+  next();
+};
