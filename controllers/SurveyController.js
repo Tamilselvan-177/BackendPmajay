@@ -105,6 +105,9 @@ export const getHousesByVillage = async (req, res) => {
 // =========================
 // NEW CONSOLIDATED SURVEY SUBMISSION ENDPOINT (/submit-v2)
 // =========================
+// =========================
+// NEW FIXED SUBMIT SURVEY V2
+// =========================
 export const submitSurveyV2 = async (req, res) => {
   try {
     const villageId = req.user.village;
@@ -117,13 +120,15 @@ export const submitSurveyV2 = async (req, res) => {
     if (!house)
       return res.status(404).json({ success: false, message: "House not found" });
 
-    // Update members if provided, validate array
+    // ==============================
+    // UPDATE HOUSE MEMBERS IF PROVIDED
+    // ==============================
     let updatedHouse = house;
     if (members) {
       if (!Array.isArray(members))
-        return res.status(400).json({ success: false, message: "Members must be an array of names" });
+        return res.status(400).json({ success: false, message: "Members must be an array" });
 
-      const newCount = members.length || (membersCount ? Number(membersCount) : 0);
+      const newCount = members.length || Number(membersCount) || 0;
       updatedHouse = await House.findByIdAndUpdate(
         houseId,
         { members, membersCount: newCount },
@@ -131,56 +136,94 @@ export const submitSurveyV2 = async (req, res) => {
       );
     }
 
-    // Map answers to indicator objects with scoring
-    const indicators = (answers || []).map(ans => {
-      const { domainKey, config } = getIndicatorConfig(ans.indicatorId);
-      if (!domainKey || !config) return null;
+    // ==============================
+    // VALIDATE ANSWERS ARRAY
+    // ==============================
+    if (!Array.isArray(answers) || answers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Answers array is empty or missing"
+      });
+    }
 
-      const answerType = config.type;
-      const answer = answerType === "yes_no" ? (ans.answer === "yes" ? "yes" : "no") : null;
-      const percentage = answerType === "percentage" ? Number(ans.percentage || 0) : null;
+    // ==============================
+    // PARSE INDICATORS PROPERLY
+    // ==============================
+    const indicators = [];
+
+    for (const ans of answers) {
+      const { indicatorId } = ans;
+
+      const domainKey = Object.keys(PMJAY_DOMAINS).find(key =>
+        PMJAY_DOMAINS[key].indicators.some(ind => ind.id === indicatorId)
+      );
+
+      if (!domainKey) {
+        console.log("Invalid indicator ID:", indicatorId);
+        continue; // skip invalid indicators
+      }
+
+      const config = PMJAY_DOMAINS[domainKey].indicators.find(ind => ind.id === indicatorId);
 
       const indicatorObj = {
-        indicatorId: ans.indicatorId,
+        indicatorId,
         domain: domainKey,
-        question: `${config.sector.replace(/([A-Z])/g, " $1").trim()} status?`,
-        answerType,
-        answer,
-        percentage,
+        question: config.question || config.label || config.name || "Indicator question",
+        answerType: config.type,
+        answer: null,
+        percentage: null,
+        score: 0,   // AUTO-SCORED VIA MODEL HOOK
         remark: ""
       };
 
-      indicatorObj.score = computeIndicatorScore(indicatorObj);
-      return indicatorObj;
-    }).filter(Boolean);
+      // YES / NO
+      if (config.type === "yes_no") {
+        indicatorObj.answer = ans.answer === "yes" ? "yes" : "no";
+      }
 
-    const domainScores = computeDomainScores(indicators);
+      // PERCENTAGE
+      if (config.type === "percentage") {
+        indicatorObj.percentage = Number(ans.percentage || 0);
+      }
 
+      indicators.push(indicatorObj);
+    }
+
+    if (indicators.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid indicators found in payload"
+      });
+    }
+
+    // ==============================
+    // CREATE SURVEY (auto score happens in survey model pre-save)
+    // ==============================
     const survey = await Survey.create({
       house: houseId,
       village: villageId,
       indicators,
-      domainScores,
-      overallScore: Object.values(domainScores).reduce((a, b) => a + b, 0),
       status: "completed",
       surveyTakenBy: {
-        name: surveyorName || req.user.fullName || "",
+        name: surveyorName || req.user.fullName || "Unknown",
         user: req.user._id
       },
       members: updatedHouse.members || [],
       membersCount: updatedHouse.membersCount || 0
     });
 
-    // Mark house surveyStatus as completed
+    // Update house status
     await House.findByIdAndUpdate(houseId, { surveyStatus: "completed" });
 
-    res.json({
+    return res.json({
       success: true,
       message: "Survey submitted successfully",
       survey
     });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error("submitSurveyV2 ERROR:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
