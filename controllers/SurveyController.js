@@ -35,6 +35,7 @@ export const getSurveyQuestions = async (req, res) => {
     res.json({
       success: true,
       domains: PMJAY_DOMAINS,
+      
       totalIndicators: Object.values(PMJAY_DOMAINS).reduce(
         (sum, d) => sum + d.indicators.length,
         0
