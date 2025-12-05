@@ -64,16 +64,29 @@ export const createProjectRequest = async (req, res) => {
       return res.status(403).json({ message: "Only officers can request projects" });
     }
 
-    const { projectName, budget, description } = req.body;
-    const villageId = req.user.village || req.body.villageId;
+    const { projectName, budget, description, villageId } = req.body; // ✅ NEW: villageId from form
     const assignedCollector = req.user.assignedCollector;
 
     if (!villageId) {
-      return res.status(400).json({ message: "Village is missing for request" });
+      return res.status(400).json({ message: "Please select a village" });
+    }
+
+    // ✅ NEW: Verify officer has access to this village (in their block)
+    const village = await Village.findById(villageId).populate('block');
+    
+    if (!village) {
+      return res.status(404).json({ message: "Village not found" });
+    }
+
+    // Check if village is in officer's block
+    if (req.user.block && village.block._id.toString() !== req.user.block.toString()) {
+      return res.status(403).json({ 
+        message: "You can only create projects for villages in your block" 
+      });
     }
 
     if (!assignedCollector) {
-      return res.status(400).json({ message: "Village not linked with officer" });
+      return res.status(400).json({ message: "No collector assigned to your account" });
     }
 
     // Create project request
@@ -81,7 +94,7 @@ export const createProjectRequest = async (req, res) => {
       projectName,
       budget,
       description,
-      village: villageId,
+      village: villageId, // ✅ Use selected village
       requestedBy: req.user._id,
       assignedCollector
     });
@@ -105,6 +118,9 @@ export const createProjectRequest = async (req, res) => {
       await request.save();
     }
 
+    // Populate for response
+    await request.populate('village', 'name');
+
     res.status(201).json({
       success: true,
       message: "Project request submitted successfully",
@@ -115,6 +131,181 @@ export const createProjectRequest = async (req, res) => {
   }
 };
 
+export const getOfficerVillages = async (req, res) => {
+  try {
+    if (req.user.role !== "officer") {
+      return res.status(403).json({ message: "Only officers can access this" });
+    }
+
+    let villages = [];
+
+    // If officer has a specific block assigned
+    if (req.user.block) {
+      villages = await Village.find({ block: req.user.block })
+        .select('name scPopulation totalPopulation location')
+        .populate('block', 'name')
+        .sort({ name: 1 });
+    } 
+    // If officer has just village access
+    else if (req.user.village) {
+      const village = await Village.findById(req.user.village)
+        .select('name scPopulation totalPopulation location')
+        .populate('block', 'name');
+      
+      if (village) villages = [village];
+    }
+
+    res.json({
+      success: true,
+      count: villages.length,
+      villages: villages.map(v => ({
+        _id: v._id,
+        name: v.name,
+        scPopulation: v.scPopulation?.count || 0,
+        totalPopulation: v.totalPopulation || 0,
+        block: v.block?.name || 'N/A',
+        location: v.location
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// =========================================
+// OFFICER: View Their Own Requests (ENHANCED WITH GROUPING)
+// =========================================
+export const getMyRequests = async (req, res) => {
+  try {
+    const requests = await ProjectRequest.find({ requestedBy: req.user._id })
+      .populate("village", "name block scPopulation")
+      .populate({
+        path: "documents",
+        model: "ProjectDocument",
+        select: "documentType fileUrl status"
+      })
+      .populate({
+        path: "assignedScheme",
+        select: "schemeName description budgetLimit",
+        model: "Scheme"
+      })
+      .sort({ createdAt: -1 });
+
+    // ✅ NEW: Group by village for easier viewing
+    const groupedByVillage = requests.reduce((acc, req) => {
+      const villageId = req.village?._id?.toString() || 'unknown';
+      const villageName = req.village?.name || 'Unknown Village';
+      
+      if (!acc[villageId]) {
+        acc[villageId] = {
+          villageName,
+          villageId,
+          scPopulation: req.village?.scPopulation?.count || 0,
+          requests: []
+        };
+      }
+      
+      acc[villageId].requests.push(req);
+      return acc;
+    }, {});
+
+    // ✅ NEW: Summary stats
+    const stats = {
+      total: requests.length,
+      approved: requests.filter(r => r.status === 'approved').length,
+      pending: requests.filter(r => r.status === 'pending').length,
+      rejected: requests.filter(r => r.status === 'rejected').length,
+      totalBudget: requests.reduce((sum, r) => sum + (r.budget || 0), 0),
+      villages: Object.keys(groupedByVillage).length
+    };
+
+    res.json({ 
+      success: true, 
+      count: requests.length,
+      stats,
+      requests,
+      groupedByVillage: Object.values(groupedByVillage)
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// =========================================
+// NEW: Get Project Statistics for Officer Dashboard
+// =========================================
+export const getOfficerProjectStats = async (req, res) => {
+  try {
+    if (req.user.role !== "officer") {
+      return res.status(403).json({ message: "Only officers can access this" });
+    }
+
+    // Get all requests
+    const requests = await ProjectRequest.find({ requestedBy: req.user._id })
+      .populate('village', 'name');
+
+    // Get approved projects
+    const projects = await Project.find({ officerInCharge: req.user._id })
+      .populate('village', 'name');
+
+    // Calculate stats
+    const stats = {
+      totalRequests: requests.length,
+      approved: requests.filter(r => r.status === 'approved').length,
+      pending: requests.filter(r => r.status === 'pending').length,
+      rejected: requests.filter(r => r.status === 'rejected').length,
+      totalBudget: requests.reduce((sum, r) => sum + (r.budget || 0), 0),
+      approvedBudget: requests
+        .filter(r => r.status === 'approved')
+        .reduce((sum, r) => sum + (r.budget || 0), 0),
+      activeProjects: projects.filter(p => p.status === 'approved').length,
+      completedProjects: projects.filter(p => p.status === 'completed').length,
+      
+      // Village-wise breakdown
+      villageStats: requests.reduce((acc, req) => {
+        const villageId = req.village?._id?.toString();
+        const villageName = req.village?.name || 'Unknown';
+        
+        if (!acc[villageId]) {
+          acc[villageId] = {
+            villageName,
+            total: 0,
+            approved: 0,
+            pending: 0,
+            rejected: 0,
+            totalBudget: 0
+          };
+        }
+        
+        acc[villageId].total++;
+        acc[villageId][req.status]++;
+        acc[villageId].totalBudget += req.budget || 0;
+        
+        return acc;
+      }, {}),
+      
+      // Recent activity
+      recentRequests: requests
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 5)
+        .map(r => ({
+          _id: r._id,
+          projectName: r.projectName,
+          village: r.village?.name,
+          status: r.status,
+          budget: r.budget,
+          createdAt: r.createdAt
+        }))
+    };
+
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 // =========================================
 // COLLECTOR: View Requests Assigned to Him (District restricted)
 // =========================================
@@ -262,28 +453,6 @@ export const reviewProjectRequest = async (req, res) => {
 // =====================================
 // OFFICER: View Their Own Requests
 // =====================================
-export const getMyRequests = async (req, res) => {
-  try {
-    const requests = await ProjectRequest.find({ requestedBy: req.user._id })
-      .populate("village", "name block district state")
-      .populate({
-        path: "documents",
-        model: "ProjectDocument",
-        select: "documentType fileUrl status"
-      })
-      .populate({
-        path: "assignedScheme",
-        select: "schemeName description budgetLimit",
-        model: "Scheme"
-      })
-      .sort({ createdAt: -1 });
-
-    res.json({ success: true, count: requests.length, requests });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 // =====================================
 // COLLECTOR: Get Officers Under Them
 // =====================================

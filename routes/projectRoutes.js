@@ -1,4 +1,4 @@
-// routes/projectRoutes.js - COMPLETE UPDATED VERSION
+// routes/projectRoutes.js - UPDATED WITH MULTI-VILLAGE SUPPORT
 import express from "express";
 import { protect, requireRole } from "../middleware/authMiddleware.js";
 import upload from "../middleware/uploadMiddleware.js";
@@ -14,7 +14,9 @@ import {
   collectorEditScheme,
   getAllSchemes,
   setProjectLocation,
-  getApprovedProjects
+  getApprovedProjects,
+  getOfficerVillages,        // ✅ NEW
+  getOfficerProjectStats     // ✅ NEW
 } from "../controllers/projectController.js";
 
 const router = express.Router();
@@ -22,15 +24,32 @@ const router = express.Router();
 // =====================================
 // OFFICER ROUTES
 // =====================================
-// Officer create project request + upload documents
+// ✅ NEW: Get villages in officer's block
+router.get(
+  "/officer/villages",
+  protect,
+  requireRole("officer"),
+  getOfficerVillages
+);
+
+// ✅ NEW: Get project statistics for dashboard
+router.get(
+  "/officer/stats",
+  protect,
+  requireRole("officer"),
+  getOfficerProjectStats
+);
+
+// Officer create project request + upload documents (NOW WITH VILLAGE SELECTION)
 router.post(
   "/request",
   protect,
+  requireRole("officer"),
   upload.array("documents", 10),
   createProjectRequest
 );
 
-// Officer view their own submitted requests
+// Officer view their own submitted requests (ENHANCED WITH GROUPING)
 router.get(
   "/my-requests",
   protect,
@@ -47,7 +66,7 @@ router.get(
 );
 
 // =====================================
-// OFFICER SCHEME ROUTES (NEW 🚀)
+// OFFICER SCHEME ROUTES
 // =====================================
 // Officer: Get filtered schemes by category + budget
 router.get(
@@ -100,7 +119,7 @@ router.get(
 );
 
 // =====================================
-// COLLECTOR SCHEME ROUTES (NEW 🚀)
+// COLLECTOR SCHEME ROUTES
 // =====================================
 // Collector: Edit/View/Remove scheme on requests
 router.put(

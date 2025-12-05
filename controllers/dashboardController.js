@@ -2,6 +2,7 @@
 import Survey from "../models/Survey.js";
 import VillageReadiness from "../models/VillageReadiness.js";
 import Village from "../models/Village.js";
+import { PMJAY_DOMAINS } from "../config/pmjayDomains.js";
 import { calculateVillagePriority } from "../services/priorityCalculator.js";
 
 // ========================================
@@ -40,11 +41,23 @@ export const getDistrictHeatmap = async (req, res) => {
         const surveys = await Survey.find({ village: villageDoc._id });
         
         if (surveys.length === 0) {
+          const domainZeros = Object.fromEntries(
+            Object.keys(PMJAY_DOMAINS).map((key) => [
+              key,
+              { score: 0, maxScore: PMJAY_DOMAINS[key].maxScore, percentage: 0, gap: 0 }
+            ])
+          );
+
           return {
             village: villageDoc._id,
             villageName: villageDoc.name,
             color: "gray",
-            readiness: 0,
+            readiness: {
+              overallReadiness: 0,
+              domainScores: domainZeros,
+              priority: "unknown",
+              color: "gray",
+            },
             surveys: 0,
             scPopulation: villageDoc.scPopulation?.count || 0
           };
@@ -63,7 +76,12 @@ export const getDistrictHeatmap = async (req, res) => {
           village: readiness.village,
           villageName: readiness.villageName,
           color: readiness.color,
-          readiness: readiness.overallReadiness,
+          readiness: {
+            overallReadiness: readiness.overallReadiness,
+            domainScores: readiness.domainScores,
+            priority: readiness.priority,
+            color: readiness.color,
+          },
           priority: readiness.priority,
           surveys: readiness.totalSurveys,
           scPopulation: villageDoc.scPopulation?.count || 0,
@@ -80,7 +98,7 @@ export const getDistrictHeatmap = async (req, res) => {
       green: heatmapData.filter(h => h.color === "green").length,
       gray: heatmapData.filter(h => h.color === "gray").length,
       avgReadiness: Math.round(
-        heatmapData.reduce((sum, h) => sum + h.readiness, 0) / heatmapData.length
+        heatmapData.reduce((sum, h) => sum + (h.readiness?.overallReadiness || 0), 0) / Math.max(heatmapData.length, 1)
       ),
       userRole: role
     };
@@ -88,7 +106,7 @@ export const getDistrictHeatmap = async (req, res) => {
     res.json({
       success: true,
       stats,
-      heatmapData: heatmapData.sort((a, b) => b.readiness - a.readiness),
+      heatmapData: heatmapData.sort((a, b) => (b.readiness?.overallReadiness || 0) - (a.readiness?.overallReadiness || 0)),
       role: role
     });
   } catch (err) {
